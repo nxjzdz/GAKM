@@ -10,13 +10,11 @@ import android.os.Build
 import android.provider.Settings
 import com.droiddeck.launcher.BuildConfig
 import com.droiddeck.launcher.R
+import com.droiddeck.launcher.core.Downloader
 import com.droiddeck.launcher.core.FileUtils
 import com.droiddeck.launcher.core.Hashes
 import java.io.File
-import java.io.FileOutputStream
 import java.io.IOException
-import java.net.HttpURLConnection
-import java.net.URL
 import java.security.MessageDigest
 
 /**
@@ -35,35 +33,17 @@ object SelfInstaller {
     fun permissionIntent(context: Context): Intent =
         Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:${context.packageName}"))
 
-    /** Downloads [apk] into the cache and checks it; a download left from before is replaced. */
+    /** Downloads [apk] into the cache and checks it; an interrupted download is carried on. */
     fun download(context: Context, apk: AppUpdates.Apk, progress: (Int) -> Unit): File {
         val dir = File(context.cacheDir, "updates")
-        FileUtils.delete(dir)
+        // Builds other than the one being fetched are dropped; the file itself is kept so a killed
+        // download can carry on.
+        dir.listFiles()?.forEach { if (it.name != apk.name) FileUtils.delete(it) }
         dir.mkdirs()
         val target = File(dir, apk.name)
-        val c = URL(apk.url).openConnection() as HttpURLConnection
-        c.connectTimeout = 15_000
-        c.readTimeout = 60_000
-        c.setRequestProperty("User-Agent", "DroidDeck-app")
-        c.instanceFollowRedirects = true
+        val ok = Downloader.downloadFile(apk.url, target, true) { f -> progress(if (f < 0) -1 else (f * 100).toInt()) }
+        if (!ok) throw IOException(context.getString(R.string.selfinst_download_failed))
         try {
-            if (c.responseCode != 200) throw IOException(context.getString(R.string.selfinst_http, c.responseCode))
-            val total = c.contentLengthLong.takeIf { it > 0 } ?: apk.size
-            c.inputStream.use { input ->
-                FileOutputStream(target).use { out ->
-                    val buf = ByteArray(1 shl 16)
-                    var done = 0L
-                    var last = -1
-                    while (true) {
-                        val r = input.read(buf)
-                        if (r <= 0) break
-                        out.write(buf, 0, r)
-                        done += r
-                        val pct = if (total > 0) (done * 100 / total).toInt() else -1
-                        if (pct != last) { last = pct; progress(pct) }
-                    }
-                }
-            }
             if (apk.size > 0 && target.length() != apk.size) {
                 throw IOException(context.getString(R.string.selfinst_size_mismatch))
             }
@@ -71,13 +51,11 @@ object SelfInstaller {
                 throw IOException(context.getString(R.string.selfinst_checksum_mismatch))
             }
             validateDownloaded(context, target, apk)
-            return target
         } catch (e: Exception) {
             FileUtils.delete(target)
             throw e
-        } finally {
-            c.disconnect()
         }
+        return target
     }
 
     /** Inspect the actual downloaded APK before giving it to Android's installer. */

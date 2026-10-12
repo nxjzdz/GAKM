@@ -43,8 +43,19 @@ mkdir -p "$WORK/pkg" "$WORK/db" || fail "cannot create $WORK"
 
 # The image's pacman.conf names a download user this rootfs does not have (only root exists) and a
 # sandbox proot cannot set up. Its one mirror is plain HTTP; these serve the same repos over TLS.
-{ for m in https://ca.us.mirror.archlinuxarm.org https://fl.us.mirror.archlinuxarm.org \
-           https://de3.mirror.archlinuxarm.org https://nl.mirror.archlinuxarm.org; do
+# A mainland mirror leads the list when one of them answers - the same tree, one directory down -
+# because pacman works through the list in order and every server ahead of it costs a connect
+# timeout per package on a network where the overseas ones are unreachable.
+OVERSEAS="https://ca.us.mirror.archlinuxarm.org https://fl.us.mirror.archlinuxarm.org https://de3.mirror.archlinuxarm.org https://nl.mirror.archlinuxarm.org"
+MAINLAND=""
+# One byte of an index answers whether the mirror is there; the file itself is a quarter of a MB.
+for m in https://mirrors.tuna.tsinghua.edu.cn/archlinuxarm https://mirrors.ustc.edu.cn/archlinuxarm \
+         https://mirrors.bfsu.edu.cn/archlinuxarm https://mirrors.sjtug.sjtu.edu.cn/archlinuxarm; do
+  if curl -fsS -r 0-0 --connect-timeout 4 --max-time 8 -o /dev/null "$m/aarch64/core/core.db" 2>/dev/null; then
+    MAINLAND="$MAINLAND $m"
+  fi
+done
+{ for m in $MAINLAND $OVERSEAS; do
     echo "Server = $m/\$arch/\$repo"; done
   grep '^Server' /etc/pacman.d/mirrorlist 2>/dev/null; } > "$WORK/mirrorlist"
 sed -e 's/^DownloadUser/#DownloadUser/' \

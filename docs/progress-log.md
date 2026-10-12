@@ -7,6 +7,35 @@ the timeline, then lessons and backlog. Companion to the README (what the app *d
 
 ---
 
+## 2026-10-12 - `download-enhancements`: a stalled download falls back to a mirror, and picks up where it stopped
+
+- **Sources** (`DownloadSource`, prefs `download-source`): the GitHub hosts get a list of interchangeable
+  URLs instead of one - the plain URL plus a prefix proxy (`gh-proxy.com`, `gh-proxy.org`, `ghproxy.net`,
+  `ghfast.top`; the first two forward `api.github.com` as well). Setup › Downloads picks Automatic, Direct,
+  Mirror (one of the four, the first by default) or a Custom prefix. The sources are timed in parallel
+  when the launcher opens (a one-byte range request each) and the quickest one leads the list, so the first
+  download does not have to find out the hard way; the winner is kept for the next start and dropped when
+  every source fails. Only GitHub hosts are listed; every other URL is its own.
+- **Every app download** (`Downloader`): the two fetches walk that list, connect timeout 30 s to 10 s and a
+  read timeout of 15 s, so a host that stops answering hands the partial file to the next source instead of
+  hanging the progress bar. 404 and 410 stay final; a 206 whose `Content-Range` does not start where the
+  file ends is thrown away and restarted, so a proxy cannot append a whole file to a part.
+- **Resume where a digest can prove the part** (`Downloader.downloadFile`): store loaders, plugin binaries,
+  Linux components, Turnip drivers and the self-update APK pass `resume = true`. The Windows components keep
+  starting over - their md5/sha256 are optional, so a stale part would be silently joined to a new version.
+- **The sites that did their own HTTP** (`TurnipReleases`, `SelfInstaller`, `AppUpdates`, `EsyncPacks`) go
+  through the same list or through `Downloader`, so no download is left on one host. Cover art (`CoverArt`)
+  probes and fetches its images the same way; a 404 still ends the search, since a file that is not there
+  is not there on any mirror either.
+- **Steam client** (`droiddeck-steam-install`): the client comes from whichever of the three CDNs answers
+  first (`client-update.steamstatic.com`, then `...akamai...`, then `...fastly...`, which answers 400 on
+  some networks), and a part that stops arriving moves on to the next one. Every part is still checked
+  against the manifest's sha256.
+- **Flatpak** (`droiddeck-flatpak-setup`): the pacman mirrorlist gets the mainland Arch Linux ARM mirrors that
+  answer a one-byte range request, in front of the four overseas ones. Flathub has no mirror to point at -
+  SJTUG redirects to `dl.flathub.org` and USTC serves objects but no `summary` - so its remote keeps the
+  upstream URL.
+
 ## 2026-10-10 - `feat/wincomp-auto-sources`: Windows components picked by the game's source
 
 - **Per source** (`WinCompSources`): Steam - Steamworks Shared depots from the appmanifest or the
