@@ -145,6 +145,7 @@ fi
 # with the same flags, so no priority reaches the GPU. Kept for a driver that maps it, and off
 # unless the app's Performance page turns it on (BL_GAMESCOPE_REALTIME=1).
 export GAMESCOPE_FORCE_VULKAN_REALTIME=${BL_GAMESCOPE_REALTIME:-0}
+rm -rf /tmp/.droiddeck-rx
 
 # A sleep that starts no process. Under proot every exec is a traced execve plus the loader's
 # opens and maps, and the watchers below poll for the whole session: `sleep 1` in a loop was 60

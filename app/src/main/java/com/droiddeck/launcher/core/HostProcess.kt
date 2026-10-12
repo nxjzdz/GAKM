@@ -14,6 +14,8 @@ import java.util.function.Consumer
  * block the child the moment the pipe filled.
  */
 object HostProcess {
+    const val LINKER = "/system/bin/linker64"
+
     private const val TAG = "HostProcess"
 
     /**

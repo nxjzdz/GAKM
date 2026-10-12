@@ -20,8 +20,7 @@ import java.util.List;
  * The glibc arm64 rootfs at {@code files/linuxfs} and the proot invocation that runs a program in
  * it as this app's own uid. It is a second runtime beside the Wine imagefs, not a container: no
  * Wine, no box64, no FEX. proot is packaged as {@code libproot.so} so the installer places it, with
- * its loader, in the native library directory - the only place an app on targetSdk 28 may execute
- * a file from.
+ * its loader, in the native library directory.
  *
  * <p>Ported from WinNative's gamescope runtime (GPL-3.0).
  */

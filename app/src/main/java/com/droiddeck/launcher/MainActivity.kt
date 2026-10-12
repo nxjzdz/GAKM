@@ -366,6 +366,8 @@ class MainActivity : ComponentActivity() {
     private var runningLabel by mutableStateOf<String?>(null)
     private var logsEnabled by mutableStateOf(true)
     private var agentCommands by mutableStateOf(false)
+    private var bluetoothAllowed by mutableStateOf<Boolean?>(null)
+    private var allFilesAllowed by mutableStateOf<Boolean?>(null)
     private var showRoms by mutableStateOf(false)
     private var homeAppSelected by mutableStateOf(false)
     private var homeScreenEnabled by mutableStateOf(false)
@@ -561,6 +563,7 @@ class MainActivity : ComponentActivity() {
                         desktopInstalled = desktopInstalled, desktopPresent = desktopPresent,
                         offlineAccount = offlineAccount, offline = offline,
                         frameGenLabel = frameGenLabel, romsDir = romsDir, logsEnabled = logsEnabled, agentCommands = agentCommands,
+                        bluetoothAllowed = bluetoothAllowed, allFilesAllowed = allFilesAllowed,
                         steamGames = steamGames, emulators = emulatorList, running = runningLabel,
                         frameGen = FrameGen.mode(this),
                         lossless = lossless,
@@ -709,6 +712,8 @@ class MainActivity : ComponentActivity() {
                             com.droiddeck.launcher.agent.AgentAccess.setCommandsEnabled(this, !com.droiddeck.launcher.agent.AgentAccess.commandsEnabled(this))
                             agentCommands = com.droiddeck.launcher.agent.AgentAccess.commandsEnabled(this)
                         },
+                        onBluetoothAllowed = { askBluetooth() },
+                        onAllFilesAllowed = { com.droiddeck.launcher.core.AllFilesAccess.openSettings(this) },
                         onShareLogs = {
                             SessionLogShare.prepare(this, { SessionLogShare.latest(this) }) { zip ->
                                 if (zip == null) android.widget.Toast.makeText(this, R.string.main_no_logs_yet, android.widget.Toast.LENGTH_LONG).show()
@@ -885,11 +890,16 @@ class MainActivity : ComponentActivity() {
         if (savedInstanceState == null) ui.post { startSteamAtStartupIfEnabled() }
 
         // The session's logs land in Downloads so a failed run can be handed over as a folder
-        // rather than dug out of app-private storage. targetSdk 28 means the old permission still
-        // grants exactly that.
+        // rather than dug out of app-private storage.
         val wanted = ArrayList<String>()
-        if (checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q
+            && checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
             wanted.add(Manifest.permission.WRITE_EXTERNAL_STORAGE)
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && !SessionPrefs.bluetoothAsked(this)
+            && checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
+            wanted.add(Manifest.permission.BLUETOOTH_CONNECT)
+            SessionPrefs.setBluetoothAsked(this)
         }
         // The microphone is off by default. Someone who turned it on before the permission was
         // granted is asked once here, with the storage prompt; a refusal is not asked again - the
@@ -900,6 +910,14 @@ class MainActivity : ComponentActivity() {
             SessionPrefs.setMicAsked(this)
         }
         if (wanted.isNotEmpty()) requestPermissions(wanted.toTypedArray(), 1)
+        else if (!com.droiddeck.launcher.core.AllFilesAccess.granted() && !SessionPrefs.allFilesAsked(this)) {
+            Thread({
+                if (com.droiddeck.launcher.core.AllFilesAccess.usesSharedStorage(this)) runOnUiThread {
+                    SessionPrefs.setAllFilesAsked(this)
+                    com.droiddeck.launcher.core.AllFilesAccess.ask(this)
+                }
+            }, "all-files-access").start()
+        }
         // A store sign-in an earlier build left in plain text is sealed with the Keystore key.
         Thread({ com.droiddeck.launcher.stores.StoreAccounts.encryptAll(this) }, "store-credentials").start()
         // A session folder left without its ending - the process was killed - gets it now.
@@ -978,11 +996,32 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private fun refreshPermissionRows() {
+        bluetoothAllowed = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S)
+            checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED else null
+        allFilesAllowed = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) com.droiddeck.launcher.core.AllFilesAccess.granted() else null
+    }
+
+    private fun askBluetooth() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return
+        val permission = Manifest.permission.BLUETOOTH_CONNECT
+        val granted = checkSelfPermission(permission) == PackageManager.PERMISSION_GRANTED
+        if (granted || (SessionPrefs.bluetoothAsked(this) && !shouldShowRequestPermissionRationale(permission))) {
+            runCatching {
+                startActivity(Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS, android.net.Uri.parse("package:$packageName")))
+            }
+        } else {
+            SessionPrefs.setBluetoothAsked(this)
+            requestPermissions(arrayOf(permission), 3)
+        }
+    }
+
     override fun onResume() {
         super.onResume()
         orientation = SessionPrefs.orientation(this)
         requestedOrientation = orientation
         refreshWifiDiscovery()
+        refreshPermissionRows()
         // Back from a store's sign-in page: the Stores chips show the account at once. A store
         // install finishing while this screen is up rebuilds the Games list through the listener.
         com.droiddeck.launcher.stores.StoresState.refresh(this)

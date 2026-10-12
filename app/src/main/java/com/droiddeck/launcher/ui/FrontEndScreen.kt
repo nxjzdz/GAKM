@@ -99,6 +99,8 @@ class FrontEndState(
     val logsEnabled: Boolean,
     /** Setup's Debugging tools toggle (AgentAccess): off unless the user turns it on. */
     val agentCommands: Boolean = false,
+    val bluetoothAllowed: Boolean? = null,
+    val allFilesAllowed: Boolean? = null,
     val steamGames: List<Library.SteamGame>,
     val emulators: List<Library.Emulator>,
     val running: String?,
@@ -203,6 +205,8 @@ class FrontEndActions(
     val onBrowseFiles: (File) -> Unit = {},
     val onLogs: () -> Unit,
     val onAgentCommands: () -> Unit = {},
+    val onBluetoothAllowed: () -> Unit = {},
+    val onAllFilesAllowed: () -> Unit = {},
     val onShareLogs: () -> Unit = {},
     val onClearLogs: () -> Unit = {},
     val onOffline: () -> Unit,

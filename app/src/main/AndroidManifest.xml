@@ -7,6 +7,7 @@
     <!-- Session logs go to Downloads so a failed run can be handed over as one folder. -->
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
+    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <!-- Store download progress and "installed" / "failed" notices (Android 13+). -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
@@ -14,6 +15,8 @@
          process at perceptible priority, and a high-performance WiFi lock keeps a backgrounded
          download from being throttled to nothing by the radio's power-save. -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
     <!-- Optional Wi-Fi discovery: requested only from Steam settings after an explanation. -->
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
@@ -30,9 +33,9 @@
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <!-- Installs DroidDeck's own updates (Updates page) over itself, after the user allows it. -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
-    <!-- A paired Steam Controller, read over Bluetooth LE out of lizard mode (SteamControllerBle).
-         Granted at install below targetSdk 31; no scan, so no location. -->
-    <uses-permission android:name="android.permission.BLUETOOTH" />
+    <!-- A paired Steam Controller, read over Bluetooth LE out of lizard mode (SteamControllerBle). -->
+    <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
 
     <uses-feature android:name="android.hardware.vulkan.version" android:version="0x401000" android:required="true" />
     <uses-feature android:name="android.hardware.gamepad" android:required="false" />
@@ -47,6 +50,7 @@
         android:hardwareAccelerated="true"
         android:largeHeap="true"
         android:extractNativeLibs="true"
+        android:requestLegacyExternalStorage="true"
         android:appCategory="game"
         android:isGame="true">
 
@@ -167,14 +171,25 @@
         <service
             android:name=".session.SessionService"
             android:exported="false"
-            android:stopWithTask="false" />
+            android:foregroundServiceType="specialUse"
+            android:stopWithTask="false">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Runs the user's Linux game session (compositor, Steam client, audio) while the app is not on screen" />
+        </service>
         <!-- Holds the process in the foreground while the Linux runtime downloads and unpacks. -->
         <service
             android:name=".runtime.RuntimeInstallService"
-            android:exported="false" />
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
         <service
             android:name=".core.WirelessAdbPairingService"
-            android:exported="false" />
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Waits for the wireless debugging pairing code the user enters from the notification" />
+        </service>
         <!-- Keeps the process alive while a store (GOG, Epic, Amazon) game downloads. -->
         <service
             android:name=".stores.download.StoreDownloadService"

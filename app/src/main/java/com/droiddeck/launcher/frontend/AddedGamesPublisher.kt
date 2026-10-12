@@ -31,6 +31,28 @@ object AddedGamesPublisher {
         if (now) work.run() else worker.execute(work)
     }
 
+    fun refreshDuringSession(context: Context) {
+        val app = context.applicationContext
+        worker.execute {
+            try {
+                val before = AddedGames.listingFile(app).takeIf { it.isFile }?.readText().orEmpty()
+                val games = AddedGames.scan(app)
+                AddedGames.writeListing(app, games)
+                LibraryCache.save(app, Library.launchableGames(app, added = games))
+                val fresh = games.filter { !before.contains(org.json.JSONObject.quote(it.guestExe)) }
+                if (fresh.isEmpty()) return@execute
+                Log.i(TAG, "session refresh: ${fresh.size} game(s) not in the listing the session started with")
+                for (attempt in 0 until 36) {
+                    if (com.droiddeck.launcher.stores.SteamLiveShortcuts.sync(app, fresh) { true }) break
+                    if (!com.droiddeck.launcher.session.SessionState.running) break
+                    Thread.sleep(5_000)
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "session refresh: ${e.message}")
+            }
+        }
+    }
+
     /** The listing and the library cache from one scan of the added games. Blocking. */
     fun republish(context: Context) {
         val games = AddedGames.scan(context)

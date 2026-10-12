@@ -26,7 +26,7 @@ import java.util.UUID
  *
  * Lizard mode is refreshed while connected; when a session ends, the controller restores it itself.
  */
-@SuppressLint("MissingPermission") // BLUETOOTH is granted at install below targetSdk 31
+@SuppressLint("MissingPermission")
 class SteamControllerBle(private val context: Context) {
     private val thread = HandlerThread("steam-controller-ble").apply { start() }
     private val handler = Handler(thread.looper)

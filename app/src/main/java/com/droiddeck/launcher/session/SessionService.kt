@@ -385,12 +385,19 @@ class SessionService : Service() {
         // The user's own games, for the runtime's shortcuts writer to put in the client's library
         // before the client starts (see frontend/AddedGames and droiddeck-steam-shortcuts).
         if (steamHere) {
-            val added = com.droiddeck.launcher.frontend.AddedGames.scan(this)
-            val listing = com.droiddeck.launcher.frontend.AddedGames.writeListing(this, added)
+            val cached = com.droiddeck.launcher.frontend.AddedGames.listingFile(this)
+            val listing = if (cached.isFile) {
+                com.droiddeck.launcher.frontend.AddedGamesPublisher.refreshDuringSession(this)
+                Log.i(TAG, "added games: the last listing, refreshed in the background")
+                cached
+            } else {
+                val added = com.droiddeck.launcher.frontend.AddedGames.scan(this)
+                if (added.isNotEmpty()) Log.i(TAG, "added games: " + added.joinToString { "${it.name} (${it.exe.name})" })
+                com.droiddeck.launcher.frontend.AddedGames.writeListing(this, added)
+            }
             guest.add("BL_ADDED_GAMES=" + listing.path)
             if (OfflineMode.enabled(this)) guest.add("BL_STEAM_OFFLINE=1")
             if (com.droiddeck.launcher.gpu.Lossless.owned(this)) guest.add("BL_LOSSLESS_OWNED=1")
-            if (added.isNotEmpty()) Log.i(TAG, "added games: " + added.joinToString { "${it.name} (${it.exe.name})" })
         }
         // Where the guest leaves a request for another session (the desktop's Steam launchers).
         guest.add("BL_LAUNCH_DIR=" + sessionRoot.path)

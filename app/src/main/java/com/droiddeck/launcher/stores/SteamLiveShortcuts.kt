@@ -37,9 +37,10 @@ object SteamLiveShortcuts {
     private const val COMPAT_TOOL = "droiddeck-proton-arm64"
 
     /** Adds every game in [games] that [include] takes (store games by default) and the client does not list yet. Blocking; worker thread. */
-    fun sync(context: Context, games: List<AddedGames.Game>, include: (AddedGames.Game) -> Boolean = { it.source != Library.ADDED }) {
+    fun sync(context: Context, games: List<AddedGames.Game>, include: (AddedGames.Game) -> Boolean = { it.source != Library.ADDED }): Boolean {
         val wanted = games.filter(include)
-        if (wanted.isEmpty() || !clientRunning()) return
+        if (wanted.isEmpty()) return true
+        if (!clientRunning()) return false
         val list = JSONArray()
         for (g in wanted) list.put(JSONObject().put("name", g.name).put("exe", g.guestExe).put("dir", g.guestDir))
         val js = """
@@ -59,9 +60,10 @@ object SteamLiveShortcuts {
               return added;
             })()
         """.trimIndent()
-        val result = evaluate(context, js) ?: return
+        val result = evaluate(context, js) ?: return false
         Log.i(TAG, "live shortcuts: $result added")
         if (result != "0") StoresState.logLine("Steam: $result shortcut(s) added to the running client")
+        return true
     }
 
     /** Removes the shortcut with [appId] from the running client. Blocking; worker thread. */
