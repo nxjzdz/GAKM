@@ -45,5 +45,20 @@ library list, before anything is published.
   `GAMESCOPE_FOCUSABLE_WINDOWS`, so the client kept its loading screen over the running game
   (Skyrim SE, A Plague Tale: Innocence, on the games' own Xwayland). MapNotify now refreshes the flag.
 
+The system PowerVR driver uses the existing SDL/Wayland swapchain backend. Its additional patches are:
+
+- `0120-nested-swapchain-capability-fallback.patch`: negotiate the surface's usages, mutable-format
+  support, image count, alpha and extent; use offscreen composition and GPU copies when required.
+- `0121-powervr-single-pixel-rcas.patch`: use the existing single-pixel RCAS shader on PowerVR,
+  where the quad variant fails compilation.
+- `0122-powervr-linear-dmabuf-import.patch`: retain the explicit linear layout when PowerVR
+  rejects the mutable-format query, and intersect imported-image and FD memory-type masks.
+- `0123-powervr-rgba-copy-surface.patch`: require an advertised RGBA SDR copy surface matching
+  the shader's `rgba8` storage view. The tested workaround leaves other vendors, HDR and direct
+  composition unchanged; it does not restrict game-facing BGRA formats.
+- `0124-sdl-preserve-explicit-refresh.patch` and `0125-sdl-wait-before-present.patch`: preserve
+  configured refresh across SDL events and finish composition before presenting without a
+  render-finished semaphore. The build runs the focused capability, format and refresh tests.
+
 Sixteen more of Armada's patches are DRM/lease/HDR-on-KMS work for a native display, which this
 app's Wayland-hosted gamescope never reaches, or need a newer gamescope than the runtime has.

@@ -43,6 +43,23 @@ class DriverPairsTest {
     }
 
     @Test
+    fun powerVrUsesItsOwnFamilyWithoutClaimingAllModelsAreTested() {
+        assertEquals(Family.POWERVR, GpuInfo.familyOf(false, 0, powerVr = true))
+        assertEquals(Family.NOT_ADRENO, GpuInfo.familyOf(false, 0, powerVr = false))
+        assertEquals(Family.A7XX, GpuInfo.familyOf(true, 740, powerVr = true))
+        val powerVr = GpuInfo("PowerVR", 0, Family.POWERVR, "", false)
+        assertEquals(GpuInfo.Support.UNTESTED, powerVr.support)
+        assertNull("PowerVR never downloads an Adreno driver pair", DriverPairs.recommendedKey(powerVr, emptyList()))
+        val pairs = DriverPairs.from(TurnipReleases.Check(
+            listOf(asset("Turnip-r4.zip", "r4", false, DriverPairs.BANNER),
+                asset("Turnip-r4-Linux.zip", "r4", true, DriverPairs.BANNER)),
+            emptyList(), emptyList(), 0L,
+        ))
+        assertFalse(pairs.single().suits(powerVr))
+        assertNull(DriverPairs.recommendedKey(powerVr, pairs))
+    }
+
+    @Test
     fun autoPicksWinNativeBalancedOn8xxAndBannersElsewhere() {
         assertEquals(DriverPairs.WN_BALANCED, DriverPairs.recommendedKey(gpu(830), emptyList()))
         assertEquals("840 with no DD-Turnip release listed", DriverPairs.WN_BALANCED, DriverPairs.recommendedKey(gpu(840), emptyList()))

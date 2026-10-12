@@ -186,7 +186,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: app/src/main/assets/linuxfs
-          key: preloads-${{ env.PRELOAD_CACHE_VERSION }}-${{ hashFiles('app/src/main/cpp/fakeinput_steam.cpp', 'tools/linuxfs/preload/*.c', 'tools/linuxfs/build-x86-preloads.sh', 'tools/linuxfs/fex/*', 'tools/linuxfs/clipboard/*.c', 'tools/linuxfs/ssbs/*.c', 'tools/proot/fastpath/*.c', 'tools/linuxfs/overlay/usr/local/bin/*', 'tools/linuxfs/overlay/usr/bin/**', 'tools/linuxfs/desktop/*', 'tools/gamescope/release.env', 'tools/wlroots/release.env', 'tools/linuxfs/uruntime.env', 'tools/linuxfs/licenses/*', 'tools/mangoapp/*', 'tools/msitools/**', 'tools/linuxfs/debian-image.env') }}
+          key: preloads-${{ env.PRELOAD_CACHE_VERSION }}-${{ hashFiles('app/src/main/cpp/fakeinput_steam.cpp', 'tools/linuxfs/preload/*.c', 'tools/linuxfs/build-x86-preloads.sh', 'tools/linuxfs/fex/*', 'tools/linuxfs/clipboard/*.c', 'tools/linuxfs/ssbs/*.c', 'tools/linuxfs/xclipse-layer/*', 'tools/proot/fastpath/*.c', 'tools/linuxfs/overlay/usr/local/bin/*', 'tools/linuxfs/overlay/usr/bin/**', 'tools/linuxfs/desktop/*', 'tools/gamescope/release.env', 'tools/wlroots/release.env', 'tools/linuxfs/uruntime.env', 'tools/linuxfs/licenses/*', 'tools/mangoapp/*', 'tools/msitools/**', 'tools/linuxfs/debian-image.env') }}
 
       - name: Build libfakeinput.so and libblsession.so (glibc aarch64)
         if: steps.preloads.outputs.cache-hit != 'true'
@@ -195,7 +195,7 @@ jobs:
         run: |
           set -euo pipefail
           sudo apt-get update -qq
-          sudo apt-get install -y -qq gcc-aarch64-linux-gnu g++-aarch64-linux-gnu >/dev/null
+          sudo apt-get install -y -qq gcc-aarch64-linux-gnu g++-aarch64-linux-gnu libvulkan-dev >/dev/null
           D=app/src/main/assets/linuxfs
           mkdir -p "$D"
           aarch64-linux-gnu-g++ -shared -fPIC -O2 -Wall -Wno-attributes -Wno-nonnull-compare \
@@ -215,6 +215,12 @@ jobs:
           aarch64-linux-gnu-gcc -shared -fPIC -O2 -Wall -pthread \
             -o "$D/libssbs.so" tools/linuxfs/ssbs/ssbs_adapter.c -ldl
           aarch64-linux-gnu-strip --strip-unneeded "$D/libssbs.so"
+          # Samsung Xclipse driver workarounds, a Vulkan layer the system-driver path enables there.
+          mkdir -p "$D/usr/local/lib/droiddeck-xclipse"
+          aarch64-linux-gnu-gcc -shared -fPIC -O2 -Wall -Wextra -Wno-unused-parameter -fvisibility=hidden -pthread \
+            -o "$D/usr/local/lib/droiddeck-xclipse/libVkLayer_droiddeck_xclipse.so" tools/linuxfs/xclipse-layer/xclipse_layer.c -ldl
+          aarch64-linux-gnu-strip --strip-unneeded "$D/usr/local/lib/droiddeck-xclipse/libVkLayer_droiddeck_xclipse.so"
+          install -m644 tools/linuxfs/xclipse-layer/VkLayer_droiddeck_xclipse.json "$D/usr/local/lib/droiddeck-xclipse/"
           mkdir -p "$D/usr/local/bin"
           aarch64-linux-gnu-gcc -O2 -Wall -Wextra -o "$D/usr/local/bin/droiddeck-clipboard" tools/linuxfs/clipboard/clipboard.c -ldl
           aarch64-linux-gnu-strip --strip-unneeded "$D/usr/local/bin/droiddeck-clipboard"
@@ -457,6 +463,7 @@ jobs:
           SGDB_API_KEY: ${{ secrets.SGDB_API_KEY }}
         run: |
           set -o pipefail
+          python3 tools/powervr/fetch.py
           python3 tools/release/runtime_inputs.py record
           ./gradlew assembleRelease --console=plain -PndkVersion="$NDK_VERSION" 2>&1 | tee /tmp/build.log
           python3 tools/release/check_session_assets.py app/build/outputs/apk/release/app-release.apk
@@ -496,7 +503,10 @@ jobs:
           if-no-files-found: ignore
 
       - name: Steam import and game environment tests
-        run: python3 -m unittest discover -s tools/tests -p 'test_*.py'
+        run: |
+          # The Xclipse layer regression test compiles the layer against the distribution's headers.
+          sudo apt-get update -qq && sudo apt-get install -y -qq libvulkan-dev >/dev/null
+          python3 -m unittest discover -s tools/tests -p 'test_*.py'
 
       - name: Unit tests
         run: ./gradlew testReleaseUnitTest --console=plain -PndkVersion="$NDK_VERSION"

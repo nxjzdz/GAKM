@@ -13,7 +13,7 @@ else
 fi
 sdk_dir=${ANDROID_HOME:-${ANDROID_SDK_ROOT:-"${HOME}/Library/Android/sdk"}}
 java_dir=${JAVA_HOME:-"/opt/homebrew/opt/openjdk@17/libexec/openjdk.jdk/Contents/Home"}
-image_name=${DROIDDECK_BUILD_IMAGE:-droiddeck-local-cross:24.04-v3}
+image_name=${DROIDDECK_BUILD_IMAGE:-droiddeck-local-cross:24.04-v4}
 build_variant=${DROIDDECK_BUILD_VARIANT:-release}
 case "$build_variant" in
     debug) gradle_task=assembleDebug ;;
@@ -100,6 +100,11 @@ docker run --rm --platform linux/amd64 \
         aarch64-linux-gnu-gcc -shared -fPIC -O2 -Wall -pthread \
             -o "$d/libssbs.so" tools/linuxfs/ssbs/ssbs_adapter.c -ldl
         aarch64-linux-gnu-strip --strip-unneeded "$d/libssbs.so"
+        mkdir -p "$d/usr/local/lib/droiddeck-xclipse"
+        aarch64-linux-gnu-gcc -shared -fPIC -O2 -Wall -Wextra -Wno-unused-parameter -fvisibility=hidden -pthread \
+            -o "$d/usr/local/lib/droiddeck-xclipse/libVkLayer_droiddeck_xclipse.so" tools/linuxfs/xclipse-layer/xclipse_layer.c -ldl
+        aarch64-linux-gnu-strip --strip-unneeded "$d/usr/local/lib/droiddeck-xclipse/libVkLayer_droiddeck_xclipse.so"
+        install -m644 tools/linuxfs/xclipse-layer/VkLayer_droiddeck_xclipse.json "$d/usr/local/lib/droiddeck-xclipse/"
         mkdir -p "$d/usr/local/bin"
         aarch64-linux-gnu-gcc -O2 -Wall -Wextra -o "$d/usr/local/bin/droiddeck-clipboard" tools/linuxfs/clipboard/clipboard.c -ldl
         aarch64-linux-gnu-strip --strip-unneeded "$d/usr/local/bin/droiddeck-clipboard"
@@ -316,6 +321,7 @@ else
 fi
 
 cd "${repo_root}"
+python3 tools/powervr/fetch.py
 python3 tools/release/runtime_inputs.py record
 ./gradlew "${gradle_task}" --console=plain -PndkVersion="${ndk_version}" ${gradle_rust_arg}
 python3 tools/release/check_session_assets.py "app/build/outputs/apk/${build_variant}/app-${build_variant}.apk"

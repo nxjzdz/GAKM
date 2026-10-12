@@ -7,6 +7,8 @@ import com.droiddeck.launcher.R
 import com.droiddeck.launcher.core.GameEnvironment
 import com.droiddeck.launcher.core.TextureFiltering
 import com.droiddeck.launcher.gpu.ScreenEffects
+import com.droiddeck.launcher.gpu.SystemVulkanDriver
+import com.droiddeck.launcher.gpu.TurnipDriver
 import org.json.JSONObject
 
 /** The in-session switches: the HUD and how the on-screen controls decide to appear. */
@@ -213,6 +215,15 @@ object SessionPrefs {
         if (p.contains("gpuDriverMode")) return
         val chosen = androidDriver(context).isNotEmpty() || linuxDriver(context).isNotEmpty()
         p.edit().putString("gpuDriverMode", if (chosen) GPU_DRIVERS_MANUAL else GPU_DRIVERS_AUTO).apply()
+    }
+
+    /** Also called by direct session launches, which may never open the driver settings. */
+    @JvmStatic
+    fun ensurePowerVrAutoDrivers(context: Context) = ensurePowerVrAutoDrivers(context, SystemVulkanDriver.isPowerVr())
+
+    internal fun ensurePowerVrAutoDrivers(context: Context, powerVr: Boolean) {
+        if (!powerVr || gpuDriverMode(context) != GPU_DRIVERS_AUTO) return
+        prefs(context).edit().putString("linuxDriver", "").putString("androidDriver", TurnipDriver.AUTO).apply()
     }
 
     /** Drivers Auto downloaded: the only ones it removes when a newer pair replaces them. */

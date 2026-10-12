@@ -566,6 +566,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                 )
                 SessionDrawer(drawerOpen, drawerPage, drawerControllerActive, onPageChange = { drawerPage = it }, a = DrawerActions(
                     steam = SessionState.mode == SessionService.MODE_STEAM,
+                    systemPowerVr = com.droiddeck.launcher.gpu.SystemVulkanDriver.usesDefault(
+                        SessionPrefs.linuxDriver(this@SessionActivity)),
                     title = if (SessionState.mode == SessionService.MODE_RUN)
                         com.droiddeck.launcher.frontend.Library.nameForProgram(SessionState.program) ?: getString(R.string.session_title_game) else null,
                     isHomeApp = isHomeApp,
@@ -1208,8 +1210,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         // the evdev codes we inject.
         FileUtils.copyAsset(this, "wayland/keymap.xkb", File(runtimeDir, "keymap.xkb"))
 
-        // Turnip, not the system Adreno driver: importing the dma-bufs gamescope commits needs
-        // VK_EXT_image_drm_format_modifier, which the system driver does not implement.
+        // Adreno imports dma-bufs with Turnip. PowerVR uses its system Vulkan driver
+        // to import the Android hardware buffers supplied by the runtime bridge.
         val turnip = TurnipDriver(this)
         val driverId = if (CompositorHost.isStarted) null else turnip.install()
 

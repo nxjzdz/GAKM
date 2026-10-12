@@ -2,6 +2,7 @@
 #define VK_PRESENT_H
 #include <stdint.h>
 #include <android/native_window.h>
+#include <android/hardware_buffer.h>
 /*
  * Android-surface render backend for the embedded Wayland compositor.
  * Owns a Turnip VkDevice + a swapchain on the SurfaceView's ANativeWindow. Each
@@ -38,6 +39,11 @@ int vkp_output_to_scene(double ox, double oy, double *sx, double *sy);
 void vkp_output_size(int *w, int *h);
 
 struct vkp_image;
+
+/* android_wlegl clients share complete Android buffer handles, not guessed DMA-BUF layouts.
+ * The image retains its own AHB reference. Call only from the compositor thread. */
+int vkp_android_buffer_supported(void);
+struct vkp_image *vkp_image_from_android_buffer(AHardwareBuffer *buffer);
 
 /* DRM format modifiers this backend knows the memory layout of (both single-plane on Adreno):
  * LINEAR, and QCOM_COMPRESSED = UBWC (drm_fourcc.h: fourcc_mod_code(QCOM = 0x05, 1)). */

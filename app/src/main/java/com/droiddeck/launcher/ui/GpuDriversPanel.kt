@@ -84,6 +84,9 @@ class GpuDriversState(
     val supported: Boolean = true,
     val unsupported: Boolean = false,
     val auto: Boolean = true,
+    val powerVr: Boolean = false,
+    /** The selected runtime supplies DXVK for PowerVR game launches. */
+    val systemPowerVr: Boolean = false,
     val pairs: List<PairRow> = emptyList(),
     /** The pair key being installed, and how far along (-1 = unknown). */
     val busy: String? = null,

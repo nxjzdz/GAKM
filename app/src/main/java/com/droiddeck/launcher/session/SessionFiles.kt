@@ -53,6 +53,7 @@ object SessionFiles {
             "usr/local/bin/droiddeck-msi-install" to "usr/local/bin/droiddeck-msi-install",
             "usr/local/bin/droiddeck-esync" to "usr/local/bin/droiddeck-esync",
             "usr/local/bin/droiddeck-steam-compat" to "usr/local/bin/droiddeck-steam-compat",
+            "usr/local/bin/droiddeck-steam-taskset" to "usr/local/libexec/droiddeck-steam/taskset",
             "usr/local/bin/droiddeck-fex" to "usr/local/bin/droiddeck-fex",
             "libblsession.so" to "usr/local/lib/libblsession.so",
             "libfakeinput.so" to "usr/local/lib/libfakeinput.so",
@@ -129,6 +130,10 @@ object SessionFiles {
             "usr/local/lib/mangoapp/libtraceevent.so.1",
             "usr/local/lib/mangoapp/libtracefs.so.1",
         ).map { it to it }
+        // Samsung Xclipse driver workarounds (tools/linuxfs/xclipse-layer), the Vulkan layer
+        // SystemVulkanDriver enables on that GPU.
+        val xclipse = listOf("libVkLayer_droiddeck_xclipse.so", "VkLayer_droiddeck_xclipse.json")
+            .map { "usr/local/lib/droiddeck-xclipse/$it" }
         // What the Windows components installer reads .msi packages with (tools/msitools).
         val msitools = listOf("msiinfo", "cabextract", "7z", "7z.so", "libmsi-1.0.so.0", "libgsf-1.so.114", "libgcab-1.0.so.0")
             .map { "usr/local/lib/droiddeck-msitools/$it" } +
@@ -140,7 +145,7 @@ object SessionFiles {
             "usr/local/bin/gamescope" to "usr/local/bin/gamescope",
             "usr/local/lib/droiddeck/uruntime" to "usr/local/lib/droiddeck/uruntime",
             "usr/local/share/licenses/uruntime/LICENSE" to "usr/local/share/licenses/uruntime/LICENSE",
-        ) + mangoapp + msitools.map { it to it } + fexPreloads).filter { (asset, _) ->
+        ) + mangoapp + xclipse.map { it to it } + msitools.map { it to it } + fexPreloads).filter { (asset, _) ->
             val dir = asset.substringBeforeLast('/')
             runCatching { context.assets.list("linuxfs/$dir")?.contains(asset.substringAfterLast('/')) == true }.getOrDefault(false)
         }

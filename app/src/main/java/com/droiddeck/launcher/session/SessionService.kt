@@ -2,6 +2,7 @@ package com.droiddeck.launcher.session
 
 import com.droiddeck.launcher.gpu.LinuxVulkanDriver
 import com.droiddeck.launcher.gpu.LinuxVulkanDriverManager
+import com.droiddeck.launcher.gpu.SystemVulkanDriver
 
 import android.app.Notification
 import android.app.NotificationChannel
@@ -318,6 +319,7 @@ class SessionService : Service() {
     // ── The session ─────────────────────────────────────────────────────────────────────────
 
     private fun runSession(gen: Int) {
+        SessionPrefs.ensurePowerVrAutoDrivers(this)
         SessionTerminal.clear()
         try {
             LinuxRuntime.writeAccounts(this)
@@ -331,7 +333,17 @@ class SessionService : Service() {
         val sessionRoot = LinuxRuntime.sessionRoot(this).apply { mkdirs() }
         val runtimeDir = File(filesDir, ".wayland-rt").apply { mkdirs() }
         killStragglers()
-        SessionFiles.stage(this, root)
+        try {
+            if (SystemVulkanDriver.usesDefault(SessionPrefs.linuxDriver(this))) {
+                SystemVulkanDriver.prepare(this)
+                pruneSystemVulkanRuntime()
+            }
+            SessionFiles.stage(this, root)
+        } catch (error: Exception) {
+            Log.e(TAG, "Could not prepare the session graphics runtime", error)
+            stopSession(-1)
+            return
+        }
         com.droiddeck.launcher.agent.AgentGuest.reset(this)
         // The compat tool asks for an Epic game's sign-in code at every launch, the client's Play button included.
         com.droiddeck.launcher.stores.StoreLaunchRequests.start(this)
@@ -609,6 +621,9 @@ class SessionService : Service() {
         // import falls back to. One driver for every session: the driver's shader cache is keyed on
         // its build, and with one per mode every emulator compiled its shaders twice.
         val linuxDriverId = SessionPrefs.linuxDriver(this)
+        if (SystemVulkanDriver.usesDefault(linuxDriverId)) {
+            SystemVulkanDriver.addEnvironment(this, guest)
+        }
         LinuxVulkanDriver.resolveIcdPath(this, linuxDriverId)
             ?.let { guest.add(LinuxVulkanDriver.ENV + "=" + it) }
         // Turnip's own debug switches, for the runtime's driver and everything on it. The file in
@@ -1470,6 +1485,12 @@ class SessionService : Service() {
         }.onFailure { Log.w(TAG, "could not request Steam wake", it) }
     }
 
+    /** Background-only: preserve old runtimes until all earlier guest processes are gone. */
+    private fun pruneSystemVulkanRuntime() {
+        runCatching { SystemVulkanDriver.pruneUnused(this, !OrphanReaper.hasOtherProcesses()) }
+            .onFailure { Log.w(TAG, "could not prune unused system Vulkan runtimes", it) }
+    }
+
     private fun finishSessionStop(status: Int, stoppedGen: Int) {
         mainHandler.post {
             if (stoppedGen != sessionGen || SessionState.running) {
@@ -1585,9 +1606,11 @@ class SessionService : Service() {
                     auxiliary.forEach { (pid, started) -> teardown(pid, started) }
                     if (prootPid > 1) teardown(prootPid)
                     killGuestLeftovers()
+                    pruneSystemVulkanRuntime()
                     finishSessionStop(status, stoppedGen)
                 }, "session-teardown").start()
             } else {
+                Thread({ pruneSystemVulkanRuntime() }, "system-vulkan-prune").start()
                 finishSessionStop(status, stoppedGen)
             }
         }
